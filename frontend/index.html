@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered prescription reader that converts doctor's handwritten prescriptions into clear, patient-friendly medicine instructions.">
+    <title>Prescription Reader — AI Prescription Interpreter</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💊</text></svg>">
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header__icon">💊</div>
+        <h1 class="header__title">Prescription Reader</h1>
+        <p class="header__subtitle">Upload your prescription and get clear, easy-to-understand medicine instructions</p>
+    </header>
+
+    <main class="container">
+
+        <!-- Upload Zone -->
+        <div class="upload-zone" id="uploadZone">
+            <div class="upload-zone__icon">📷</div>
+            <p class="upload-zone__text">Drop your prescription image here</p>
+            <p class="upload-zone__hint">or click to browse • JPG, PNG, WebP • Max 10MB</p>
+            <input type="file" class="upload-zone__input" id="fileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
+        </div>
+
+        <!-- Image Preview -->
+        <div class="preview" id="preview">
+            <div class="preview__wrapper">
+                <img class="preview__image" id="previewImage" alt="Prescription preview">
+                <button class="preview__remove" id="removeBtn" title="Remove image">✕</button>
+            </div>
+        </div>
+
+        <!-- Analyze Button -->
+        <button class="analyze-btn" id="analyzeBtn">
+            🔍 Analyze Prescription
+        </button>
+
+        <!-- Loading State -->
+        <div class="loading" id="loading">
+            <div class="loading__spinner"></div>
+            <p class="loading__text">Reading your prescription...</p>
+            <p class="loading__subtext">This may take a few seconds</p>
+        </div>
+
+        <!-- Error State -->
+        <div class="error" id="error">
+            <div class="error__icon">⚠️</div>
+            <p class="error__text" id="errorText">Something went wrong</p>
+            <p class="error__detail" id="errorDetail">Please try again with a clearer image</p>
+        </div>
+
+        <!-- Results -->
+        <div class="results" id="results">
+
+            <!-- Prescription Info -->
+            <div class="prescription-info" id="prescriptionInfo">
+                <!-- Dynamically populated -->
+            </div>
+
+            <!-- Medicine List Section -->
+            <div class="section-header">
+                <span class="section-header__icon">📋</span>
+                <h2 class="section-header__title">Your Medicines</h2>
+                <span class="section-header__count" id="medicineCount">0</span>
+            </div>
+
+            <div class="medicine-list" id="medicineList">
+                <!-- Dynamically populated -->
+            </div>
+
+            <!-- Daily Schedule Section -->
+            <div class="section-header">
+                <span class="section-header__icon">🗓️</span>
+                <h2 class="section-header__title">Daily Schedule</h2>
+            </div>
+
+            <div class="schedule">
+                <div class="schedule__grid" id="scheduleGrid">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Disclaimer -->
+            <div class="disclaimer">
+                <span class="disclaimer__icon">🛡️</span>
+                <p class="disclaimer__text">
+                    <strong>Disclaimer:</strong> This tool is for informational purposes only and does not replace professional medical advice. 
+                    Always consult your doctor or pharmacist before taking any medication. AI reading may not be 100% accurate — 
+                    verify medicine names with your pharmacist.
+                </p>
+            </div>
+
+            <!-- New Analysis -->
+            <button class="new-analysis-btn" id="newAnalysisBtn">
+                📷 Analyze Another Prescription
+            </button>
+        </div>
+
+    </main>
+
+    <footer class="footer">
+        <p class="footer__text">Built with ❤️ for patients • Powered by AI</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
