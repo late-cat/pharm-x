@@ -15,7 +15,7 @@ from gemini_service import configure, extract_prescription, get_medicine_info_fr
 from fuzzy_matcher import fuzzy_match_medicine
 from dosage_rules import interpret_dosage, get_medicine_type
 
-app = FastAPI(title="Prescription Reader", version="1.0.0")
+app = FastAPI(title="Pharm-X", version="1.0.0")
 
 # CORS for frontend
 app.add_middleware(
