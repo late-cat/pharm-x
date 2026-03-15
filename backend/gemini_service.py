@@ -139,7 +139,7 @@ async def get_medicine_info_from_ai(medicine_name: str) -> dict:
     if model is None:
         return {"error": "Gemini API not configured"}
     
-    prompt = f"""Provide brief information about the medicine "{medicine_name}" in JSON format:
+    prompt = f"""Provide brief information, estimated price, and availability for the medicine "{medicine_name}" in India in JSON format:
 {{
     "brand_name": "{medicine_name}",
     "generic_name": "generic/salt name",
@@ -147,7 +147,9 @@ async def get_medicine_info_from_ai(medicine_name: str) -> dict:
     "uses": "brief one-line use",
     "side_effects": "common side effects",
     "food_instruction": "Before food/After food/With food",
-    "warnings": "important warning"
+    "warnings": "important warning",
+    "estimated_price": "estimated price in INR",
+    "available_on": "e.g. 1mg, Apollo Pharmacy, PharmEasy"
 }}
 Return ONLY valid JSON, no markdown formatting."""
     
@@ -181,4 +183,6 @@ Return ONLY valid JSON, no markdown formatting."""
             "side_effects": "Consult your doctor",
             "food_instruction": "As directed",
             "warnings": "Follow doctor's instructions",
+            "estimated_price": "",
+            "available_on": ""
         }

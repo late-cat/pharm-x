@@ -107,6 +107,11 @@ async def analyze_prescription(file: UploadFile = File(...)):
         # Fuzzy match against Kaggle database (for name validation, generic name, price, manufacturer)
         db_match = fuzzy_match_medicine(medicine_name)
         
+        # If no DB match or no price in DB, fallback to AI for price estimation + availability
+        ai_fallback = {}
+        if not db_match or not db_match.get("price"):
+            ai_fallback = await get_medicine_info_from_ai(medicine_name)
+        
         # Interpret dosage
         dosage_info = interpret_dosage(dosage_code)
         
@@ -115,21 +120,23 @@ async def analyze_prescription(file: UploadFile = File(...)):
         
         # Build enriched medicine card
         # DB provides: validated name, generic_name, manufacturer, price
-        # Gemini provides: uses, side_effects, food_instruction
+        # Gemini provides: uses, side_effects, food_instruction, and fallback estimated_price & available_on
         enriched = {
             "name": db_match.get("brand_name", medicine_name) if db_match else medicine_name,
-            "generic_name": db_match.get("generic_name", "") if db_match else "",
+            "generic_name": db_match.get("generic_name", "") if db_match else ai_fallback.get("generic_name", ""),
             "type": full_type,
             "manufacturer": db_match.get("manufacturer", "") if db_match else "",
             "price": db_match.get("price", "") if db_match else "",
-            "uses": ai_uses or "Consult your doctor",
-            "side_effects": ai_side_effects or "",
+            "estimated_price": ai_fallback.get("estimated_price", ""),
+            "available_on": ai_fallback.get("available_on", ""),
+            "uses": ai_uses or ai_fallback.get("uses", "Consult your doctor"),
+            "side_effects": ai_side_effects or ai_fallback.get("side_effects", ""),
             "dosage_code": dosage_code,
             "dosage_readable": dosage_info["times"],
             "schedule": dosage_info["schedule"],
             "duration": duration,
-            "food_instruction": ai_food_instruction or special_instructions or "As directed",
-            "warnings": "",
+            "food_instruction": ai_food_instruction or special_instructions or ai_fallback.get("food_instruction", "As directed"),
+            "warnings": ai_fallback.get("warnings", ""),
             "special_instructions": special_instructions,
             "match_score": db_match.get("match_score") if db_match else None,
         }

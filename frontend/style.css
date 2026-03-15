@@ -541,6 +541,11 @@ body::before {
     font-weight: 600;
 }
 
+.medicine-card__detail-value--estimate {
+    color: var(--accent-amber);
+    font-weight: 500;
+}
+
 .medicine-card__detail--full {
     grid-column: 1 / -1;
 }

@@ -230,14 +230,23 @@ function createMedicineCard(med, number) {
         ? `<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">(${med.match_score}% match)</span>`
         : '';
 
-    const priceDisplay = med.price ? `₹${escapeHtml(med.price)}` : 'N/A';
-    const priceClass = med.price ? ' medicine-card__detail-value--highlight' : '';
+    const hasExactPrice = !!med.price;
+    const priceDisplay = hasExactPrice ? `₹${escapeHtml(med.price)}` : (med.estimated_price ? escapeHtml(med.estimated_price) : 'N/A');
+    const priceClass = hasExactPrice ? ' medicine-card__detail-value--highlight' : ' medicine-card__detail-value--estimate';
+    const priceLabel = hasExactPrice ? '💰 Price (MRP)' : '💰 Estimated Price';
+    
     const priceHtml = `
         <div class="medicine-card__detail">
-            <span class="medicine-card__detail-label">💰 Price (MRP)</span>
+            <span class="medicine-card__detail-label">${priceLabel}</span>
             <span class="medicine-card__detail-value${priceClass}">${priceDisplay}</span>
         </div>`;
-
+        
+    const availabilityHtml = med.available_on ? `
+        <div class="medicine-card__detail medicine-card__detail--full">
+            <span class="medicine-card__detail-label">🛒 Available On</span>
+            <span class="medicine-card__detail-value">${escapeHtml(med.available_on)}</span>
+        </div>` : '';
+        
     const manufacturerHtml = med.manufacturer ? `
         <div class="medicine-card__detail medicine-card__detail--full">
             <span class="medicine-card__detail-label">🏭 Manufacturer</span>
@@ -280,6 +289,7 @@ function createMedicineCard(med, number) {
                 <span class="medicine-card__detail-label">⚡ Possible Side Effects</span>
                 <span class="medicine-card__detail-value">${escapeHtml(med.side_effects)}</span>
             </div>` : ''}
+            ${availabilityHtml}
             ${manufacturerHtml}
             ${warningHtml}
         </div>
