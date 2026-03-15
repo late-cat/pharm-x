@@ -8,6 +8,13 @@ from pathlib import Path
 DATA_PATH = Path(__file__).parent / "data" / "A_Z_medicines_dataset_of_India.csv"
 medicines_df = pd.read_csv(DATA_PATH)
 
+# Load the 1mg Dataset
+OMG_DATA_PATH = Path(__file__).parent / "data" / "1mgData.csv"
+try:
+    onemg_df = pd.read_csv(OMG_DATA_PATH)
+except FileNotFoundError:
+    onemg_df = pd.DataFrame()
+
 # Clean up: remove discontinued medicines, keep only useful columns
 medicines_df = medicines_df[medicines_df["Is_discontinued"] == False].copy()
 
@@ -31,6 +38,26 @@ BRAND_NAMES = medicines_df["brand_name"].tolist()
 EXACT_LOOKUP = {}
 for _, row in medicines_df.iterrows():
     EXACT_LOOKUP[row["brand_name"].lower()] = row
+
+# Pre-build lookup for the 1mg dataset
+ONEMG_EXACT_LOOKUP = {}
+if not onemg_df.empty:
+    for _, row in onemg_df.iterrows():
+        # Clean 1mg price (remove the '₹' symbol so it matches Kaggle schema)
+        clean_price = str(row.get("price", "")).replace("₹", "").strip()
+        
+        # Build a compatible dict immediately 
+        ONEMG_EXACT_LOOKUP[str(row.get("Name", "")).strip().lower()] = {
+            "brand_name": str(row.get("Name", "")).strip(),
+            "generic_name": "", # Not clearly defined in 1mg data, will fallback to AI estimation
+            "type": str(row.get("pack_size", "")),
+            "manufacturer": "1mg Vendor", # 1mg doesn't explicitly guarantee a manufacturer column 
+            "price": clean_price,
+            "uses": "",
+            "side_effects": "",
+            "food_instruction": "",
+            "warnings": ""
+        }
 
 
 def fuzzy_match_medicine(name: str, threshold: int = 65) -> Optional[dict]:
@@ -59,12 +86,18 @@ def fuzzy_match_medicine(name: str, threshold: int = 65) -> Optional[dict]:
     if lower_name in EXACT_LOOKUP:
         return _row_to_dict(EXACT_LOOKUP[lower_name])
     
-    # Tier 2: Try matching with common suffixes added/removed
+    # Tier 2: Search exact match in the 1mg dataset
+    if lower_name in ONEMG_EXACT_LOOKUP:
+        return ONEMG_EXACT_LOOKUP[lower_name]
+        
+    # Tier 3: Try matching with common suffixes added/removed
     # Doctors often write "Dolo 650" but DB has "Dolo 650 Tablet"
     for suffix in ["Tablet", "Capsule", "Syrup", "Injection", "Drops", "Cream", "Gel", "Ointment", "Inhaler"]:
         with_suffix = f"{clean_name} {suffix}".lower()
         if with_suffix in EXACT_LOOKUP:
             return _row_to_dict(EXACT_LOOKUP[with_suffix])
+        if with_suffix in ONEMG_EXACT_LOOKUP:
+            return ONEMG_EXACT_LOOKUP[with_suffix]
     
     # Tier 3: Filter candidates by first 2-3 chars then fuzzy match
     # This avoids fuzzy matching against all 254K entries
