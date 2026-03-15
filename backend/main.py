@@ -93,7 +93,10 @@ async def analyze_prescription(file: UploadFile = File(...)):
     }
     
     for med in gemini_result.get("medicines", []):
-        medicine_name = med.get("name", "")
+        clear_name = med.get("clear_name")
+        guesses = med.get("guesses", [])
+        raw_ocr = med.get("raw_ocr", "Unknown")
+        
         medicine_type = med.get("type", "")
         dosage_code = med.get("dosage", "As directed")
         duration = med.get("duration", "As directed")
@@ -104,8 +107,45 @@ async def analyze_prescription(file: UploadFile = File(...)):
         ai_side_effects = med.get("side_effects", "")
         ai_food_instruction = med.get("food_instruction", "")
         
-        # Fuzzy match against local databases (Kaggle + 1mg)
-        db_match = fuzzy_match_medicine(medicine_name)
+        db_match = None
+        best_name = ""
+        match_reason = ""
+        needs_review = False
+        
+        if clear_name:
+            best_name = clear_name
+            db_match = fuzzy_match_medicine(clear_name)
+        elif guesses:
+            # Pass 1: Exact matches for AI guesses
+            for guess in guesses:
+                guess_name = guess.get("name", "")
+                match = fuzzy_match_medicine(guess_name, threshold=100)
+                if match:
+                    db_match = match
+                    best_name = guess_name
+                    match_reason = guess.get("reason", "")
+                    break
+            
+            # Pass 2: Fuzzy matches for AI guesses
+            if not db_match:
+                for guess in guesses:
+                    guess_name = guess.get("name", "")
+                    match = fuzzy_match_medicine(guess_name, threshold=75)
+                    if match:
+                        db_match = match
+                        best_name = guess_name
+                        match_reason = guess.get("reason", "")
+                        break
+            
+            # Pass 3: Fallback to best guess if no DB match found
+            if not db_match:
+                best_guess = guesses[0]
+                best_name = best_guess.get("name", "")
+                match_reason = best_guess.get("reason", "")
+                needs_review = True
+        else:
+            best_name = raw_ocr
+            needs_review = True
         
         # Interpret dosage
         dosage_info = interpret_dosage(dosage_code)
@@ -122,9 +162,12 @@ async def analyze_prescription(file: UploadFile = File(...)):
             "ai_side_effects": ai_side_effects,
             "ai_food_instruction": ai_food_instruction,
             "special_instructions": special_instructions,
-            "medicine_name": medicine_name,
+            "medicine_name": best_name,
             "dosage_code": dosage_code,
             "duration": duration,
+            "needs_review": needs_review,
+            "match_reason": match_reason,
+            "raw_ocr": raw_ocr
         })
     
     # Parallelize AI fallback calls for medicines missing DB prices
@@ -167,6 +210,9 @@ async def analyze_prescription(file: UploadFile = File(...)):
             "warnings": ai_fallback.get("warnings", ""),
             "special_instructions": item["special_instructions"],
             "match_score": db_match.get("match_score") if db_match else None,
+            "match_reason": item["match_reason"],
+            "needs_review": item["needs_review"],
+            "raw_ocr": item["raw_ocr"],
         }
         
         final_medicines.append(enriched)

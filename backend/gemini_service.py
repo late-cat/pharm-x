@@ -12,40 +12,58 @@ def configure(api_key: str):
     """Initialize the Gemini API client with the given API key."""
     global model
     genai.configure(api_key=api_key)
-    # Using flash-lite which is extremely fast and doesn't hit the strict 20req/day free limits of the standard flash preview
     model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
 
-EXTRACTION_PROMPT = """You are a medical prescription reader AI. Analyze this prescription image and extract ALL medicines listed.
+EXTRACTION_PROMPT = """You are a senior pharmacist AI. Analyze this prescription image and extract ALL medicines listed.
+Do not just blindly read raw shapes; use your clinical knowledge, the patient's diagnosis (if visible), and the context of other medicines to deduce the real medicine being prescribed.
 
 For EACH medicine found, provide:
 1. "type": The medicine type (Tab/Cap/Syp/Inj/Drops/Cream/Ointment/Inhaler etc.)
-2. "name": The medicine brand name with strength (e.g., "Dolo 650", "Azithral 500")
-3. "dosage": The dosage frequency exactly as written (e.g., "1-0-1", "BD", "OD", "SOS", "1-1-1")
-4. "duration": How long to take (e.g., "5 days", "7 days", "15 days") — if mentioned
-5. "special_instructions": Any additional instructions written for that medicine (e.g., "after food", "before sleep", "with warm water")
-6. "uses": Brief one-line description of what this medicine is used for (e.g., "Fever and pain relief")
-7. "side_effects": Common side effects (e.g., "Nausea, stomach upset")
-8. "food_instruction": Whether to take before food, after food, or with food
+2. "raw_ocr": What do the raw letters look like exactly, including unreadable parts? (e.g., "P---mol 650", "Azith--- 500")
+3. "clear_name": If the medicine name is 100% perfectly readable and unambiguous, put the exact brand name + strength here (e.g., "Azithral 500"). If it is messy, scribbled, cut off, or unclear in ANY way, you MUST leave this as null.
+4. "guesses": IF and ONLY IF "clear_name" is null, provide an array of 2-4 possible interpretations of the medicine name based on the raw OCR shapes AND the clinical context. 
+    - Each guess must be an object with: "name" (brand + strength), "confidence" (high/medium/low), and "reason" (why it makes sense clinically and visually). 
+    - Put your most confident guess first.
+    - If "clear_name" is populated, leave this array EMPTY [].
+5. "dosage": The dosage frequency exactly as written (e.g., "1-0-1", "BD", "OD", "SOS", "1-1-1")
+6. "duration": How long to take (e.g., "5 days", "7 days", "15 days") — if mentioned
+7. "special_instructions": Any additional instructions written for that medicine (e.g., "after food", "before sleep", "with warm water")
+8. "uses": Brief one-line description of what this medicine is used for (e.g., "Fever and pain relief")
+9. "side_effects": Common side effects (e.g., "Nausea, stomach upset")
+10. "food_instruction": Whether to take before food, after food, or with food
 
 IMPORTANT RULES:
-- Extract EXACTLY what is written. Do not guess medicines that are not clearly visible.
-- If you cannot read a medicine name clearly, still include it with your best guess and add "(unclear)" after the name.
-- Include the strength/dosage form if visible (e.g., 500mg, 650mg, 10mg).
+- Include the strength/dosage form if visible (e.g., 500mg, 650mg, 10mg) in the clear_name or guesses.
 - Preserve the type prefix (Tab, Cap, Syp, etc.) separately.
-- If duration is not mentioned, set it to "As directed".
-- If dosage frequency is not mentioned, set it to "As directed".
-- For uses, side_effects, and food_instruction, use your medical knowledge to provide accurate info.
+- If duration or dosage frequency is not mentioned, set it to "As directed".
 - IMPORTANT: Return strictly valid JSON. Do NOT include unescaped newlines or quotes inside string values. Replace any newlines inside strings with a single space.
 Return ONLY valid JSON in this exact format, no markdown formatting:
 {
     "medicines": [
         {
             "type": "Tab",
-            "name": "Dolo 650",
+            "raw_ocr": "Azithral 500",
+            "clear_name": "Azithral 500",
+            "guesses": [],
             "dosage": "1-0-1",
             "duration": "5 days",
             "special_instructions": "after food",
+            "uses": "Bacterial infection",
+            "side_effects": "Stomach upset",
+            "food_instruction": "After food"
+        },
+        {
+            "type": "Tab",
+            "raw_ocr": "P...mol 650",
+            "clear_name": null,
+            "guesses": [
+                {"name": "Paracetamol 650", "confidence": "high", "reason": "Matches 'P' and 'mol', standard fever medication alongside antibiotics"},
+                {"name": "Pacimol 650", "confidence": "low", "reason": "Alternative brand name for paracetamol"}
+            ],
+            "dosage": "1-1-1",
+            "duration": "3 days",
+            "special_instructions": "SOS",
             "uses": "Fever and pain relief",
             "side_effects": "Nausea, liver risk on overdose",
             "food_instruction": "After food"
