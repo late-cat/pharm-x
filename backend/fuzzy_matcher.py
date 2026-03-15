@@ -14,7 +14,10 @@ medicines_df = pd.read_csv(DATA_PATH, usecols=_NEEDED_COLS)
 OMG_DATA_PATH = Path(__file__).parent / "data" / "1mgData.csv"
 try:
     onemg_df = pd.read_csv(OMG_DATA_PATH, usecols=["Name", "pack_size", "price"])
-except (FileNotFoundError, ValueError):
+except FileNotFoundError:
+    onemg_df = pd.DataFrame()
+except ValueError as e:
+    print(f"⚠️  WARNING: Could not load 1mg dataset: {e}")
     onemg_df = pd.DataFrame()
 
 # Clean up: remove discontinued medicines
