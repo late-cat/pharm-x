@@ -230,11 +230,13 @@ function createMedicineCard(med, number) {
         ? `<span style="font-size:11px;color:var(--text-muted);margin-left:6px;">(${med.match_score}% match)</span>`
         : '';
 
-    const priceHtml = med.price ? `
+    const priceDisplay = med.price ? `₹${escapeHtml(med.price)}` : 'N/A';
+    const priceClass = med.price ? ' medicine-card__detail-value--highlight' : '';
+    const priceHtml = `
         <div class="medicine-card__detail">
             <span class="medicine-card__detail-label">💰 Price (MRP)</span>
-            <span class="medicine-card__detail-value medicine-card__detail-value--highlight">₹${escapeHtml(med.price)}</span>
-        </div>` : '';
+            <span class="medicine-card__detail-value${priceClass}">${priceDisplay}</span>
+        </div>`;
 
     const manufacturerHtml = med.manufacturer ? `
         <div class="medicine-card__detail medicine-card__detail--full">

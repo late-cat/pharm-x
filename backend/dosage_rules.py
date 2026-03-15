@@ -22,7 +22,9 @@ DOSAGE_RULES = {
 # Medical abbreviations
 ABBREVIATION_RULES = {
     "OD": {"times": "Once daily", "schedule": ["Morning"]},
+    "QD": {"times": "Once daily", "schedule": ["Morning"]},
     "BD": {"times": "Twice daily", "schedule": ["Morning", "Night"]},
+    "BID": {"times": "Twice daily", "schedule": ["Morning", "Night"]},
     "TDS": {"times": "Three times a day", "schedule": ["Morning", "Afternoon", "Night"]},
     "TID": {"times": "Three times a day", "schedule": ["Morning", "Afternoon", "Night"]},
     "QID": {"times": "Four times a day", "schedule": ["Morning", "Afternoon", "Evening", "Night"]},
