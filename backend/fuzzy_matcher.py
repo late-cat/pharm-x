@@ -4,25 +4,29 @@ import pandas as pd
 from rapidfuzz import fuzz, process
 from pathlib import Path
 
-# Load the Kaggle A-Z Medicine Dataset of India
+# Load the Kaggle A-Z Medicine Dataset of India (only needed columns to save memory)
 DATA_PATH = Path(__file__).parent / "data" / "A_Z_medicines_dataset_of_India.csv"
-medicines_df = pd.read_csv(DATA_PATH)
+_NEEDED_COLS = ["name", "Is_discontinued", "short_composition1", "short_composition2",
+                "pack_size_label", "manufacturer_name", "price(₹)"]
+medicines_df = pd.read_csv(DATA_PATH, usecols=_NEEDED_COLS)
 
-# Load the 1mg Dataset
+# Load the 1mg Dataset (only needed columns)
 OMG_DATA_PATH = Path(__file__).parent / "data" / "1mgData.csv"
 try:
-    onemg_df = pd.read_csv(OMG_DATA_PATH)
-except FileNotFoundError:
+    onemg_df = pd.read_csv(OMG_DATA_PATH, usecols=["Name", "pack_size", "price"])
+except (FileNotFoundError, ValueError):
     onemg_df = pd.DataFrame()
 
-# Clean up: remove discontinued medicines, keep only useful columns
+# Clean up: remove discontinued medicines
 medicines_df = medicines_df[medicines_df["Is_discontinued"] == False].copy()
+medicines_df.drop(columns=["Is_discontinued"], inplace=True)
 
 # Create a clean 'brand_name' by extracting name without dosage form type suffix
 # e.g., "Augmentin 625 Duo Tablet" → used as-is for matching
 medicines_df["brand_name"] = medicines_df["name"].str.strip()
+medicines_df.drop(columns=["name"], inplace=True)
 
-# Build composition column (combine both)
+# Build composition column (combine both), then drop raw columns to save memory
 medicines_df["generic_name"] = medicines_df.apply(
     lambda row: (
         str(row["short_composition1"]).strip()
@@ -30,14 +34,18 @@ medicines_df["generic_name"] = medicines_df.apply(
     ),
     axis=1,
 )
+medicines_df.drop(columns=["short_composition1", "short_composition2"], inplace=True)
+medicines_df.reset_index(drop=True, inplace=True)
 
 # Pre-compute list of brand names for fuzzy matching
 BRAND_NAMES = medicines_df["brand_name"].tolist()
 
-# For performance: pre-build a lowercase lookup dict for exact matching
+# For performance: pre-build a lightweight lookup mapping lowercase name → integer index.
+# Previously this stored full pd.Series per entry (~1.7KB × 242K = 444MB).
+# Now stores int indices (~28 bytes × 242K ≈ 7MB), looking up rows on demand via iloc.
 EXACT_LOOKUP = {}
-for _, row in medicines_df.iterrows():
-    EXACT_LOOKUP[row["brand_name"].lower()] = row
+for i, name in enumerate(BRAND_NAMES):
+    EXACT_LOOKUP[name.lower()] = i
 
 # Pre-build lookup for the 1mg dataset
 ONEMG_EXACT_LOOKUP = {}
@@ -58,6 +66,7 @@ if not onemg_df.empty:
             "food_instruction": "",
             "warnings": ""
         }
+    del onemg_df  # Free the DataFrame after building the lookup
 
 # Pre-compute 1mg brand names for fuzzy matching
 ONEMG_BRAND_NAMES = list(ONEMG_EXACT_LOOKUP.keys()) if ONEMG_EXACT_LOOKUP else []
@@ -87,7 +96,7 @@ def fuzzy_match_medicine(name: str, threshold: int = 65) -> Optional[dict]:
     # Tier 1: Exact match (case-insensitive) — O(1)
     lower_name = clean_name.lower()
     if lower_name in EXACT_LOOKUP:
-        return _row_to_dict(EXACT_LOOKUP[lower_name])
+        return _row_to_dict(medicines_df.iloc[EXACT_LOOKUP[lower_name]])
     
     # Tier 2: Search exact match in the 1mg dataset
     if lower_name in ONEMG_EXACT_LOOKUP:
@@ -98,7 +107,7 @@ def fuzzy_match_medicine(name: str, threshold: int = 65) -> Optional[dict]:
     for suffix in ["Tablet", "Capsule", "Syrup", "Injection", "Drops", "Cream", "Gel", "Ointment", "Inhaler"]:
         with_suffix = f"{clean_name} {suffix}".lower()
         if with_suffix in EXACT_LOOKUP:
-            return _row_to_dict(EXACT_LOOKUP[with_suffix])
+            return _row_to_dict(medicines_df.iloc[EXACT_LOOKUP[with_suffix]])
         if with_suffix in ONEMG_EXACT_LOOKUP:
             return ONEMG_EXACT_LOOKUP[with_suffix]
     
