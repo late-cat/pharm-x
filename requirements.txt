@@ -1,11 +1,10 @@
+setuptools
 fastapi
-
 python-multipart
 google-generativeai
 rapidfuzz
 pandas
 jinja2
 python-dotenv
-gunicorn==20.1.0
-uvicorn[standard]==0.23.2
-setuptools
+gunicorn>=21.2.0
+uvicorn[standard]
