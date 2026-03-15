@@ -3,8 +3,9 @@ services:
   - type: web
     name: pharm-x-backend
     env: python
+    port: 10000
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "cd backend && gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
+    startCommand: "cd backend && gunicorn main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-10000} --workers 1 --timeout 120"
     envVars:
       - key: GEMINI_API_KEY
         sync: false # Set this manually in Render dashboard
