@@ -121,8 +121,12 @@ async function analyzePrescription() {
         });
 
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.detail || 'Analysis failed');
+            let detail = 'Analysis failed';
+            try {
+                const err = await response.json();
+                detail = err.detail || detail;
+            } catch (_) { /* non-JSON error response */ }
+            throw new Error(detail);
         }
 
         const data = await response.json();

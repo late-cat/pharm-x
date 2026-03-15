@@ -79,7 +79,7 @@ async def extract_prescription(image_bytes: bytes, mime_type: str = "image/jpeg"
     }
     
     try:
-        response = model.generate_content(
+        response = await model.generate_content_async(
             [EXTRACTION_PROMPT, image_part],
             generation_config=genai.types.GenerationConfig(
                 temperature=0.1,  # Low temperature for accuracy
@@ -93,6 +93,13 @@ async def extract_prescription(image_bytes: bytes, mime_type: str = "image/jpeg"
             ]
         )
         
+        # Handle blocked/empty responses
+        if not response.candidates or not response.text:
+            return {
+                "error": "AI response was blocked or empty",
+                "medicines": []
+            }
+        
         # Parse the JSON response
         text = response.text.strip()
         
@@ -104,7 +111,7 @@ async def extract_prescription(image_bytes: bytes, mime_type: str = "image/jpeg"
         print("--- RAW AI RESPONSE ---")
         try:
             print("FINISH REASON:", response.candidates[0].finish_reason)
-        except:
+        except Exception:
             pass
         print(text)
         print("-----------------------")
@@ -154,7 +161,7 @@ async def get_medicine_info_from_ai(medicine_name: str) -> dict:
 Return ONLY valid JSON, no markdown formatting."""
     
     try:
-        response = model.generate_content(
+        response = await model.generate_content_async(
             prompt,
             generation_config=genai.types.GenerationConfig(
                 temperature=0.2,

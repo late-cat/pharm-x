@@ -86,6 +86,7 @@ def interpret_dosage(frequency_code: str) -> dict:
     Returns:
         dict with 'times' (human-readable) and 'schedule' (list of time slots)
     """
+    import re
     code = frequency_code.strip().upper()
     
     # Check exact match in dosage rules (1-0-1 format)
@@ -96,9 +97,10 @@ def interpret_dosage(frequency_code: str) -> dict:
     if code in ABBREVIATION_RULES:
         return ABBREVIATION_RULES[code]
     
-    # Try to match partial abbreviations
-    for abbr, rule in ABBREVIATION_RULES.items():
-        if abbr in code:
+    # Try to match abbreviations as whole words (avoid "OD" matching "FOOD")
+    # Sort by length descending so longer abbreviations match first (BID before BD)
+    for abbr, rule in sorted(ABBREVIATION_RULES.items(), key=lambda x: len(x[0]), reverse=True):
+        if re.search(r'\b' + re.escape(abbr) + r'\b', code):
             return rule
     
     # Default: return the code as-is

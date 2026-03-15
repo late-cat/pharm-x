@@ -398,17 +398,12 @@ body::before {
     border-radius: var(--radius-sm);
     padding: 16px 20px;
     margin-bottom: 28px;
-    display: flex;
     flex-wrap: wrap;
     gap: 20px;
 }
 
 .prescription-info.show {
     display: flex;
-}
-
-.prescription-info:not(.show) {
-    display: none;
 }
 
 .prescription-info__item {

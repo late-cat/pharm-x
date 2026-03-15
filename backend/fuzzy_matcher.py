@@ -51,13 +51,16 @@ if not onemg_df.empty:
             "brand_name": str(row.get("Name", "")).strip(),
             "generic_name": "", # Not clearly defined in 1mg data, will fallback to AI estimation
             "type": str(row.get("pack_size", "")),
-            "manufacturer": "1mg Vendor", # 1mg doesn't explicitly guarantee a manufacturer column 
+            "manufacturer": "",
             "price": clean_price,
             "uses": "",
             "side_effects": "",
             "food_instruction": "",
             "warnings": ""
         }
+
+# Pre-compute 1mg brand names for fuzzy matching
+ONEMG_BRAND_NAMES = list(ONEMG_EXACT_LOOKUP.keys()) if ONEMG_EXACT_LOOKUP else []
 
 
 def fuzzy_match_medicine(name: str, threshold: int = 65) -> Optional[dict]:
@@ -131,6 +134,21 @@ def fuzzy_match_medicine(name: str, threshold: int = 65) -> Optional[dict]:
         match_dict["match_score"] = score
         match_dict["original_query"] = clean_name
         return match_dict
+    
+    # Tier 5: Fuzzy match against 1mg dataset
+    if ONEMG_BRAND_NAMES:
+        onemg_result = process.extractOne(
+            clean_name.lower(),
+            ONEMG_BRAND_NAMES,
+            scorer=fuzz.token_sort_ratio,
+            score_cutoff=threshold,
+        )
+        if onemg_result:
+            match_key, score, _ = onemg_result
+            match_dict = ONEMG_EXACT_LOOKUP[match_key].copy()
+            match_dict["match_score"] = score
+            match_dict["original_query"] = clean_name
+            return match_dict
     
     return None
 

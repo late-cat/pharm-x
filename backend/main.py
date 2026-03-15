@@ -1,4 +1,5 @@
 import os
+import asyncio
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -9,7 +10,6 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pathlib import Path
 
 from gemini_service import configure, extract_prescription, get_medicine_info_from_ai
 from fuzzy_matcher import fuzzy_match_medicine
@@ -104,13 +104,8 @@ async def analyze_prescription(file: UploadFile = File(...)):
         ai_side_effects = med.get("side_effects", "")
         ai_food_instruction = med.get("food_instruction", "")
         
-        # Fuzzy match against Kaggle database (for name validation, generic name, price, manufacturer)
+        # Fuzzy match against local databases (Kaggle + 1mg)
         db_match = fuzzy_match_medicine(medicine_name)
-        
-        # If no DB match or no price in DB, fallback to AI for price estimation + availability
-        ai_fallback = {}
-        if not db_match or not db_match.get("price"):
-            ai_fallback = await get_medicine_info_from_ai(medicine_name)
         
         # Interpret dosage
         dosage_info = interpret_dosage(dosage_code)
@@ -118,34 +113,66 @@ async def analyze_prescription(file: UploadFile = File(...)):
         # Get full medicine type
         full_type = get_medicine_type(medicine_type) if medicine_type else (db_match.get("type", "") if db_match else "")
         
-        # Build enriched medicine card
-        # DB provides: validated name, generic_name, manufacturer, price
-        # Gemini provides: uses, side_effects, food_instruction, and fallback estimated_price & available_on
+        enriched_medicines.append({
+            "_med_ref": med,
+            "db_match": db_match,
+            "dosage_info": dosage_info,
+            "full_type": full_type,
+            "ai_uses": ai_uses,
+            "ai_side_effects": ai_side_effects,
+            "ai_food_instruction": ai_food_instruction,
+            "special_instructions": special_instructions,
+            "medicine_name": medicine_name,
+            "dosage_code": dosage_code,
+            "duration": duration,
+        })
+    
+    # Parallelize AI fallback calls for medicines missing DB prices
+    ai_tasks = []
+    fallback_indices = []
+    for i, item in enumerate(enriched_medicines):
+        if not item["db_match"] or not item["db_match"].get("price"):
+            ai_tasks.append(get_medicine_info_from_ai(item["medicine_name"]))
+            fallback_indices.append(i)
+    
+    ai_results = await asyncio.gather(*ai_tasks) if ai_tasks else []
+    
+    # Map AI results back to their medicines
+    ai_fallbacks = {}
+    for idx, ai_result in zip(fallback_indices, ai_results):
+        ai_fallbacks[idx] = ai_result
+    
+    # Build final enriched medicine list
+    final_medicines = []
+    for i, item in enumerate(enriched_medicines):
+        db_match = item["db_match"]
+        ai_fallback = ai_fallbacks.get(i, {})
+        full_type = item["full_type"]
+        
         enriched = {
-            "name": db_match.get("brand_name", medicine_name) if db_match else medicine_name,
+            "name": db_match.get("brand_name", item["medicine_name"]) if db_match else item["medicine_name"],
             "generic_name": db_match.get("generic_name", "") if db_match else ai_fallback.get("generic_name", ""),
             "type": full_type,
             "manufacturer": db_match.get("manufacturer", "") if db_match else "",
             "price": db_match.get("price", "") if db_match else "",
             "estimated_price": ai_fallback.get("estimated_price", ""),
             "available_on": ai_fallback.get("available_on", ""),
-            "uses": ai_uses or ai_fallback.get("uses", "Consult your doctor"),
-            "side_effects": ai_side_effects or ai_fallback.get("side_effects", ""),
-            "dosage_code": dosage_code,
-            "dosage_readable": dosage_info["times"],
-            "schedule": dosage_info["schedule"],
-            "duration": duration,
-            "food_instruction": ai_food_instruction or special_instructions or ai_fallback.get("food_instruction", "As directed"),
+            "uses": item["ai_uses"] or ai_fallback.get("uses", "Consult your doctor"),
+            "side_effects": item["ai_side_effects"] or ai_fallback.get("side_effects", ""),
+            "dosage_code": item["dosage_code"],
+            "dosage_readable": item["dosage_info"]["times"],
+            "schedule": item["dosage_info"]["schedule"],
+            "duration": item["duration"],
+            "food_instruction": item["ai_food_instruction"] or item["special_instructions"] or ai_fallback.get("food_instruction", "As directed"),
             "warnings": ai_fallback.get("warnings", ""),
-            "special_instructions": special_instructions,
+            "special_instructions": item["special_instructions"],
             "match_score": db_match.get("match_score") if db_match else None,
         }
         
-        enriched_medicines.append(enriched)
+        final_medicines.append(enriched)
         
         # Build schedule
-        for time_slot in dosage_info["schedule"]:
-            # Normalize schedule key
+        for time_slot in enriched["schedule"]:
             slot_key = time_slot
             if slot_key not in schedule_data:
                 schedule_data[slot_key] = []
@@ -167,9 +194,9 @@ async def analyze_prescription(file: UploadFile = File(...)):
             "date": gemini_result.get("date", ""),
             "diagnosis": gemini_result.get("diagnosis", ""),
         },
-        "medicines": enriched_medicines,
+        "medicines": final_medicines,
         "daily_schedule": schedule_data,
-        "total_medicines": len(enriched_medicines),
+        "total_medicines": len(final_medicines),
     }
     
     return JSONResponse(content=response)
